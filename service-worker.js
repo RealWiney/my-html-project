@@ -1,14 +1,21 @@
-const CACHE_NAME = "todo-cache-v1";
-const urlsToCache = ["/", "/index.html"];
+const CACHE_NAME = "todo-v1";
+const ASSETS = [
+  "/",
+  "/index.html"
+];
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", function(event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(ASSETS);
+    })
   );
 });
 
-self.addEventListener("fetch", (event) => {
+self.addEventListener("fetch", function(event) {
   event.respondWith(
-    caches.match(event.request).then((res) => res || fetch(event.request))
+    caches.match(event.request).then(function(response) {
+      return response || fetch(event.request);
+    })
   );
 });
