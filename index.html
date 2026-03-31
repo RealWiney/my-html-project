@@ -1,0 +1,386 @@
+<meta charset="UTF-8">
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>修行日记 - 沉浸磨砂全量版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --font-lisu: "LiSu", "隶书", "STLiti", "Noto Serif SC", serif; }
+        * { font-family: var(--font-lisu) !important; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { background: #000; margin: 0; overflow: hidden; }
+        
+        /* 背景层：增加丝滑过渡 */
+        .bg-layer { 
+            position: absolute; inset: 0; 
+            background-size: cover; 
+            background-position: center; 
+            transition: filter 1s cubic-bezier(0.4, 0, 0.2, 1); 
+            z-index: 0; 
+        }
+        
+        /* 核心磨砂质感：无白边，高模糊 */
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.4); 
+            backdrop-filter: blur(25px) saturate(160%);
+            -webkit-backdrop-filter: blur(25px) saturate(160%);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            border: none !important;
+        }
+
+        .progress-bar { transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        
+        /* 小成就卡片质感 */
+        .achievement-card { 
+            background: rgba(255, 255, 255, 0.25);
+            transition: all 0.3s ease;
+            border: none !important;
+        }
+        .achievement-done { 
+            background: rgba(52, 211, 153, 0.4) !important; 
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        /* 大成就金框感 */
+        .big-ach-gold { 
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%); 
+            border: 1px solid rgba(251, 191, 36, 0.4) !important;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+        
+        /* 导航栏：悬浮磨砂感 */
+        .nav-glass {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.05);
+        }
+
+        /* 输入框去白边 */
+        .input-pure {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: #1e293b;
+        }
+    </style>
+</head>
+<body class="flex justify-center items-center min-h-screen">
+
+<div id="app" class="w-full max-w-md h-screen md:h-[812px] md:rounded-[45px] shadow-2xl overflow-hidden flex flex-col relative bg-black">
+    
+    <div class="bg-layer" :style="bgStyle"></div>
+
+    <div class="pt-12 pb-8 px-6 glass-card rounded-b-[40px] z-10">
+        <div class="flex items-center space-x-5">
+            <div class="relative" @click="triggerUpload('avatar')">
+                <div class="w-16 h-16 rounded-full border-2 border-amber-400/40 p-1 overflow-hidden bg-white/10 cursor-pointer shadow-lg">
+                    <img :src="user.avatar" class="w-full h-full object-cover rounded-full">
+                </div>
+                <div class="absolute -bottom-1 -left-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-md">{{ realm }}</div>
+            </div>
+            <div class="flex-1 space-y-3">
+                <div class="relative h-4 w-full bg-black/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-rose-500 to-red-600 progress-bar shadow-inner" :style="{width: user.hp + '%'}"></div>
+                    <span class="absolute inset-0 text-[9px] flex items-center justify-center font-black text-white mix-blend-difference tracking-tighter">气血 {{ user.hp }}%</span>
+                </div>
+                <div class="relative h-4 w-full bg-black/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 progress-bar shadow-inner" :style="{width: user.mp + '%'}"></div>
+                    <span class="absolute inset-0 text-[9px] flex items-center justify-center font-black text-white mix-blend-difference tracking-tighter">神识 {{ user.mp }}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-5 py-6 pb-32 z-10">
+        
+        <div v-if="isSleepNoticeActive" class="mb-6 p-5 glass-card rounded-[30px] text-center">
+            <p class="text-slate-900 text-sm font-black mb-3 italic">
+                {{ currentHour >= 23 ? '「亥时月满，闭关正当时」' : '「子夜深沉，神伤难补」' }}
+            </p>
+            <button @click="handleRest" class="bg-slate-900 text-white text-xs px-10 py-2.5 rounded-full font-bold shadow-xl active:scale-95 transition-all">
+                开启闭关
+            </button>
+        </div>
+
+        <div v-if="activeTab === 'home'" class="space-y-4">
+            <h2 class="text-white text-[11px] font-black tracking-[0.2em] px-2 mb-2 opacity-70 uppercase">今日历练清单</h2>
+            <div v-for="(task, index) in tasks" :key="index" class="glass-card p-5 rounded-[28px] flex items-center active:scale-95 transition-all">
+                <div @click="completeTask(index)" class="w-9 h-9 rounded-full bg-white/30 border border-white/20 cursor-pointer flex items-center justify-center group shadow-inner">
+                    <div class="w-3.5 h-3.5 bg-slate-800 rounded-full scale-0 group-hover:scale-100 transition-transform"></div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <p class="text-slate-900 text-base font-bold">{{ task.title }}</p>
+                    <p class="text-[10px] text-slate-800 opacity-60">联动成就：{{ achievements[task.linkedAch]?.name || '暂无' }}</p>
+                </div>
+            </div>
+            <div v-if="tasks.length === 0" class="text-center py-16 text-white/40 text-xs tracking-widest italic">
+                洞府清净，尚无历练任务
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'profile'" class="space-y-6">
+            <div class="glass-card p-6 rounded-[35px] text-center">
+                <div class="grid grid-cols-3 gap-3">
+                    <div v-for="(val, key) in {body:'炼体', soul:'神魂', mind:'意境'}" :key="key" class="py-4 bg-white/20 rounded-2xl shadow-inner">
+                        <p class="text-[10px] text-slate-900 font-bold opacity-50 mb-1">{{val}}</p>
+                        <p class="text-2xl font-black text-slate-900">Lv.{{user[key]}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="big-ach-gold p-5 rounded-[30px] text-center shadow-2xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-8 h-8 bg-amber-400/10 rounded-bl-full"></div>
+                    <p class="text-[10px] text-amber-500 font-bold tracking-[0.2em]">上善若水</p>
+                    <p class="text-white text-lg font-black mt-1">{{ bigAchLevels.water }} 阶</p>
+                </div>
+                <div class="big-ach-gold p-5 rounded-[30px] text-center shadow-2xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-8 h-8 bg-cyan-400/10 rounded-bl-full"></div>
+                    <p class="text-[10px] text-cyan-400 font-bold tracking-[0.2em]">洞明世事</p>
+                    <p class="text-white text-lg font-black mt-1">{{ bigAchLevels.world }} 阶</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-[35px]">
+                <h3 class="text-[11px] font-black text-slate-900 mb-5 tracking-widest uppercase opacity-50">修行功课 (20次进一阶)</h3>
+                <div class="space-y-3">
+                    <div v-for="(ach, id) in achievements" :key="id" @click="toggleAchievement(id)"
+                         :class="['achievement-card p-4 rounded-2xl flex justify-between items-center cursor-pointer', ach.doneToday ? 'achievement-done' : '']">
+                        <div class="flex-1">
+                            <span class="text-sm font-bold text-slate-900">{{ ach.name }}</span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-[9px] px-1.5 py-0.5 bg-black/10 rounded text-slate-800">累计 {{ ach.totalCount }}</span>
+                                <p class="text-[9px] text-slate-700 opacity-60">{{ ach.desc }}</p>
+                            </div>
+                        </div>
+                        <div class="text-xl filter drop-shadow-sm">{{ ach.doneToday ? '🔱' : '🌑' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-[35px]">
+                <h3 class="text-[11px] font-black text-slate-900 mb-5 uppercase opacity-50">洞府幻象调节</h3>
+                <div class="space-y-5">
+                    <div class="flex justify-between items-center px-1">
+                        <span class="text-[10px] font-bold text-slate-800">背景虚化度</span>
+                        <span class="text-[10px] font-bold text-slate-900">{{ user.blur }}px</span>
+                    </div>
+                    <input type="range" v-model="user.blur" min="0" max="40" class="w-full h-1.5 bg-black/10 rounded-lg appearance-none accent-slate-900">
+                    <div class="flex gap-3 pt-2">
+                        <button @click="triggerUpload('bg')" class="flex-1 py-3 bg-slate-900 text-white text-[10px] rounded-2xl font-bold shadow-lg">修葺背景</button>
+                        <button @click="exportData" class="flex-1 py-3 bg-white/30 text-slate-900 text-[10px] rounded-2xl font-bold">拓印存档</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="absolute bottom-8 left-0 right-0 px-10 z-20">
+        <div class="nav-glass h-16 rounded-full flex items-center justify-around px-2">
+            <button @click="activeTab = 'home'" :class="activeTab === 'home' ? 'text-slate-900' : 'text-slate-400'" class="flex-1 text-[11px] font-black transition-colors">洞府</button>
+            <div @click="showAddModal = true" class="w-13 h-13 bg-slate-900 rounded-full flex items-center justify-center text-white text-2xl shadow-2xl -translate-y-5 cursor-pointer active:scale-90 transition-transform">
+                <span class="mb-1">+</span>
+            </div>
+            <button @click="activeTab = 'profile'" :class="activeTab === 'profile' ? 'text-slate-900' : 'text-slate-400'" class="flex-1 text-[11px] font-black transition-colors">仙籍</button>
+        </div>
+    </div>
+
+    <div v-if="showAddModal" class="absolute inset-0 z-50 flex items-center justify-center p-8 bg-black/40 backdrop-blur-md">
+        <div class="glass-card w-full max-w-xs rounded-[45px] p-8 shadow-2xl">
+            <h2 class="text-lg font-black mb-6 text-slate-900 tracking-tight">发布历练</h2>
+            <input v-model="newTask.title" type="text" placeholder="历练名称..." class="w-full input-pure p-4 rounded-2xl mb-4 outline-none text-sm placeholder:text-slate-500">
+            <div class="flex gap-2 mb-8">
+                <select v-model="newTask.linkedAch" class="flex-1 input-pure p-4 rounded-2xl text-[11px] font-bold appearance-none">
+                    <option value="">联动成就：无</option>
+                    <option v-for="(ach, id) in achievements" :key="id" :value="id">{{ ach.name }}</option>
+                </select>
+                <input v-model.number="newTask.cost" type="number" class="w-20 input-pure p-4 rounded-2xl text-[11px] text-center">
+            </div>
+            <div class="flex gap-4">
+                <button @click="showAddModal = false" class="flex-1 py-3 text-slate-500 text-xs font-bold">撤回</button>
+                <button @click="addTask" class="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold text-xs shadow-lg">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="avatarInput" hidden @change="handleFile($event, 'avatar')" accept="image/*">
+    <input type="file" id="bgInput" hidden @change="handleFile($event, 'bg')" accept="image/*">
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, watch } = Vue;
+
+createApp({
+    setup() {
+        const activeTab = ref('home');
+        const showAddModal = ref(false);
+        const currentHour = ref(new Date().getHours());
+        const newTask = ref({ title: '', linkedAch: '', cost: 10, type: 'body', gain: 1 });
+
+        // 用户属性
+        const user = ref({ 
+            hp: 100, mp: 100, body: 1, soul: 1, mind: 1, blur: 15,
+            avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Jade', 
+            bg: 'https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&w=1000&q=80' 
+        });
+
+        // 核心成就系统
+        const achievements = ref({
+            meditation: { name: '内观自省', desc: '每日冥想', totalCount: 0, doneToday: false, group: 'water' },
+            sleep: { name: '吐故纳新', desc: '早睡早起', totalCount: 0, doneToday: false, group: 'water' },
+            diet: { name: '洗髓涤肠', desc: '清淡饮食', totalCount: 0, doneToday: false, group: 'water' },
+            read: { name: '博闻强识', desc: '经典研读', totalCount: 0, doneToday: false, group: 'world' },
+            focus: { name: '凝心铸魂', desc: '深度专注', totalCount: 0, doneToday: false, group: 'world' }
+        });
+
+        const tasks = ref([]);
+
+        // 样式计算
+        const bgStyle = computed(() => ({
+            backgroundImage: `url(${user.value.bg})`,
+            filter: `blur(${user.value.blur}px) brightness(0.85)`
+        }));
+
+        // 核心：大成就进阶算法 (20次/阶)
+        const bigAchLevels = computed(() => {
+            const getGroupMin = (gid) => {
+                const groupItems = Object.values(achievements.value).filter(a => a.group === gid);
+                if (groupItems.length === 0) return 0;
+                const minCount = Math.min(...groupItems.map(a => a.totalCount));
+                return Math.floor(minCount / 20);
+            };
+            return { water: getGroupMin('water'), world: getGroupMin('world') };
+        });
+
+        // 境界称谓
+        const realm = computed(() => {
+            const totalLv = user.value.body + user.value.soul + user.value.mind;
+            if (totalLv < 20) return '炼气期';
+            if (totalLv < 50) return '筑基期';
+            return '金丹期';
+        });
+
+        const isSleepNoticeActive = computed(() => currentHour.value >= 23 || currentHour.value < 6);
+
+        // 方法：发布任务
+        const addTask = () => {
+            if (!newTask.value.title) return;
+            tasks.value.push({ ...newTask.value });
+            newTask.value = { title: '', linkedAch: '', cost: 10, type: 'body', gain: 1 };
+            showAddModal.value = false;
+        };
+
+        // 方法：完成任务
+        const completeTask = (idx) => {
+            const t = tasks.value[idx];
+            if (user.value.hp < t.cost) {
+                alert("体能耗尽，无法历练！");
+                return;
+            }
+            user.value.hp -= t.cost;
+            user.value[t.type] += 1;
+            // 联动小成就
+            if (t.linkedAch && achievements.value[t.linkedAch]) {
+                const target = achievements.value[t.linkedAch];
+                if (!target.doneToday) {
+                    target.doneToday = true;
+                    target.totalCount++;
+                }
+            }
+            tasks.value.splice(idx, 1);
+        };
+
+        // 方法：手动点击小成就
+        const toggleAchievement = (id) => {
+            const ach = achievements.value[id];
+            if (!ach.doneToday) {
+                ach.doneToday = true;
+                ach.totalCount++;
+                user.value.mp = Math.min(100, user.value.mp + 5);
+            } else {
+                alert("今日此功课已圆满。");
+            }
+        };
+
+        // 方法：闭关刷新
+        const handleRest = () => {
+            if (currentHour.value === 23) {
+                user.value.hp = 100;
+                user.value.mp = 100;
+                alert("亥时闭关，根基大补！");
+            } else {
+                user.value.hp = Math.min(100, user.value.hp + 30);
+                alert("非时而息，气血微复。");
+            }
+            // 每日功课重置
+            for (let key in achievements.value) {
+                achievements.value[key].doneToday = false;
+            }
+        };
+
+        // 文件处理
+        const triggerUpload = (id) => document.getElementById(id + 'Input').click();
+        const handleFile = (e, type) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => user.value[type] = ev.target.result;
+                reader.readAsDataURL(file);
+            }
+        };
+
+        // 存档管理
+        const exportData = () => {
+            const obj = { u: user.value, a: achievements.value, t: tasks.value };
+            const code = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+            navigator.clipboard.writeText(code).then(() => alert("修为存档已刻录在剪贴板！"));
+        };
+
+        const importData = () => {
+            const code = prompt("请输入存档码：");
+            if (code) {
+                try {
+                    const d = JSON.parse(decodeURIComponent(escape(atob(code))));
+                    user.value = d.u;
+                    achievements.value = d.a;
+                    tasks.value = d.t;
+                    alert("道法归位，欢迎回山！");
+                } catch(e) { alert("存档破损，无法解析。"); }
+            }
+        };
+
+        // 生命周期
+        onMounted(() => {
+            const saved = localStorage.getItem('cult_final_v7');
+            if (saved) {
+                try {
+                    const d = JSON.parse(saved);
+                    user.value = d.u || user.value;
+                    achievements.value = d.a || achievements.value;
+                    tasks.value = d.t || [];
+                } catch(e) { console.error("读取存档失败"); }
+            }
+            setInterval(() => currentHour.value = new Date().getHours(), 30000);
+        });
+
+        // 自动保存
+        watch([user, achievements, tasks], () => {
+            localStorage.setItem('cult_final_v7', JSON.stringify({ 
+                u: user.value, a: achievements.value, t: tasks.value 
+            }));
+        }, { deep: true });
+
+        return { 
+            activeTab, user, tasks, achievements, realm, bigAchLevels, 
+            showAddModal, newTask, currentHour, isSleepNoticeActive, bgStyle, 
+            addTask, completeTask, toggleAchievement, handleRest, 
+            triggerUpload, handleFile, exportData, importData 
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
